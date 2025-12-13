@@ -13,6 +13,7 @@ export default function Home() {
 and integration with Punjab's PULSE/PLRA systems, replacing manual
 processes with accurate, tamper-proof digital records.{" "}
            </p>
+           
            </div>
       </main>
     </div>
