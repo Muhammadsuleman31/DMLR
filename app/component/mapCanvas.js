@@ -7,6 +7,8 @@ export default function MapCanvas({ points, onPointUpdate, onDeletePoint }) {
   const [connections, setConnections] = useState([]);
 
   const [selectedPointKey, setSelectedPointKey] = useState(null);
+const [creatingPlot, setCreatingPlot] = useState(false); // NEW: are we creating a plot?
+const [currentPlotPoints, setCurrentPlotPoints] = useState([]); // stores clicked points for the plot
 
  const [hoveredLineKey, setHoveredLineKey] = useState(null);
 
@@ -99,35 +101,118 @@ const connectionExists = (a, b) => {
     ([x, y]) => (x === a && y === b) || (x === b && y === a)
   );
 };
+ 
+const drawTemporaryPlotLines = (plotArray) => {
+  if (plotArray.length < 2) return; // need at least 2 points
 
+  const newConnections = [];
 
+  for (let i = 1; i < plotArray.length; i++) {
+    newConnections.push([plotArray[i - 1], plotArray[i]]);
+  }
+
+  // Optional: close the polygon by connecting last to first if not already
+ 
+
+  // Merge new connections into existing connections
+  setConnections(prev => {
+    const combined = [...prev];
+    newConnections.forEach(([a,b]) => {
+      // Avoid duplicates
+      if (!combined.some(([x,y]) => (x===a && y===b) || (x===b && y===a))) {
+        combined.push([a,b]);
+      }
+    });
+    return combined;
+  });
+};
+  //  console.log("current pplot points",currentPlotPoints)
 const handlePointClick = (pointKey) => {
-  console.log(connections)
+  console.log("current pplot points",currentPlotPoints);
+  console.log("current ",selectedPointKey);
+  if (creatingPlot) {
+    const lastPlotPoint =
+      currentPlotPoints[currentPlotPoints.length - 1] || null;
+
+    // 🔁 Toggle selection
+    if (selectedPointKey === pointKey) {
+      setSelectedPointKey(null);
+      return;
+    }
+
+    // 🟢 START PLOT (FIRST POINT)
+    if (currentPlotPoints.length === 0) {
+      setCurrentPlotPoints([pointKey]);
+      setSelectedPointKey(pointKey);
+      drawTemporaryPlotLines([pointKey]);
+      return;
+    }
+
+    // 🟡 Nothing selected → just select
+    if (selectedPointKey === null) {
+      setSelectedPointKey(pointKey);
+      return;
+    }
+
+    // 🔴 Enforce sequential rule
+    if (selectedPointKey !== lastPlotPoint) {
+      setSelectedPointKey(pointKey);
+      return;
+    }
+
+
+      // 🔁 Close polygon
+    if (
+      pointKey === currentPlotPoints[0] &&
+      currentPlotPoints.length >= 3
+    ) {
+       drawTemporaryPlotLines([...currentPlotPoints, pointKey]);
+      const name = prompt("Enter plot (kharsa) name:");
+      if (name) {
+       
+      }
+      setCurrentPlotPoints([]);
+      setSelectedPointKey(null);
+       setCreatingPlot(false);
+       console.log("after taking the name")
+      return;
+    }
+
+    // 🔒 Prevent duplicates
+    if (currentPlotPoints.includes(pointKey)) {
+      setSelectedPointKey(pointKey);
+      return;
+    }
+
+  
+
+    // ✅ VALID ADD
+    const newPlotArray = [...currentPlotPoints, pointKey];
+    setCurrentPlotPoints(newPlotArray);
+    setSelectedPointKey(pointKey);
+    drawTemporaryPlotLines(newPlotArray);
+    return;
+  }
+
+  // ===== EXISTING CONNECTION LOGIC (UNCHANGED) =====
   if (selectedPointKey === null) {
-    // First click → select
     setSelectedPointKey(pointKey);
     return;
   }
 
   if (selectedPointKey === pointKey) {
-    // Same point clicked again → deselect
     setSelectedPointKey(null);
     return;
   }
 
-  // Prevent duplicate or reverse duplicate
   if (connectionExists(selectedPointKey, pointKey)) {
-    console.log("Connection already exists");
     setSelectedPointKey(null);
     return;
   }
 
-  // Add new connection
   setConnections(prev => [...prev, [selectedPointKey, pointKey]]);
   setSelectedPointKey(null);
-  
 };
-
 
   const handleWheel = (e) => {
     e.evt.preventDefault();
@@ -152,8 +237,27 @@ const handlePointClick = (pointKey) => {
 
   return (
     <div style={{ position: "relative", backgroundColor: "#fff" }}>
+     
       {/* ===== Buttons ===== */}
+       
       <div style={{ position: "absolute", top: 10, right: 10, zIndex: 10, display: "flex", gap: "8px" }}>
+     <button
+  style={{
+    fontSize: "10px",
+    padding: "4px 6px",
+    background: creatingPlot ? "green" : "lightblue", // red when active
+    color: "white",
+    border: "1px solid black",
+    cursor: "pointer",
+  }}
+  onClick={() => {
+   setCurrentPlotPoints([]);
+  setCreatingPlot(prev => !prev)}} // toggle
+>
+  {creatingPlot ? "STOP PLOT" : "CREATE PLOT"}
+</button>
+
+
         <button
           onClick={savePointsToDB}
           style={{
@@ -234,7 +338,7 @@ const handlePointClick = (pointKey) => {
 
           {/* ===== Points ===== */}
           {points.map((p) => {
-            const isSelected = selectedPointKey === p.key;
+          const isSelected=  selectedPointKey === p.key;
             return (
               <React.Fragment key={p.key}>
                 <Circle
