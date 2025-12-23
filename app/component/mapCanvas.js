@@ -5,50 +5,42 @@ import React, { useState, useEffect } from "react";
 export default function MapCanvas({ points, onPointUpdate, onDeletePoint }) {
   const [size, setSize] = useState({ width: 1000, height: 800 });
   const [connections, setConnections] = useState([]);
-  const [selectedPointIndex, setSelectedPointIndex] = useState(null);
-  const [hoveredLineIndex, setHoveredLineIndex] = useState(null);
+
+  const [selectedPointKey, setSelectedPointKey] = useState(null);
+
+ const [hoveredLineKey, setHoveredLineKey] = useState(null);
 
 
-  const removeConnectionsForDeletedPoint = (deletedIndex) => {
-  setConnections((prevConnections) =>
-    prevConnections
-      .filter(
-        ([i, j]) => i !== deletedIndex && j !== deletedIndex // remove connections involving deleted point
-      )
-      .map(([i, j]) => [
-        i > deletedIndex ? i - 1 : i, // shift indices after deletion
-        j > deletedIndex ? j - 1 : j,
-      ])
+
+const removeConnectionsForDeletedPoint = (deletedKey) => {
+  setConnections(prev =>
+    prev.filter(([key1, key2]) => key1 !== deletedKey && key2 !== deletedKey)
   );
 };
 
 
+
   // ===== Save points =====
   const savePointsToDB = async () => {
-    const payload = points.map((p) => ({
-      key: `${p.name}_${p.time}`,
-      ...p,
-    }));
+  const res = await fetch("/api/save-points", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ points }), // just send points directly
+  });
 
-    const res = await fetch("/api/save-points", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ points: payload }),
-    });
+  if (!res.ok) {
+    alert("Failed to save points");
+    return;
+  }
+  alert("Points saved successfully");
+};
 
-    if (!res.ok) {
-      alert("Failed to save points");
-      return;
-    }
-    alert("Points saved successfully");
-  };
 
   // ===== Delete selected point =====
 const deleteSelectedPoint = async () => {
-  if (selectedPointIndex === null) return;
-  const point = points[selectedPointIndex];
-  const key = `${point.name}_${point.time}`;
-
+  if (selectedPointKey === null) return;
+  const point = points.find(p => p.key === selectedPointKey);
+  if (!point) return;
   if (!window.confirm(`Delete point "${point.name}"?`)) return;
 
   try {
@@ -56,17 +48,18 @@ const deleteSelectedPoint = async () => {
 const res = await fetch("/api/delete-point", {
   method: "DELETE", // or POST depending on your API
   headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ key }),
+  body: JSON.stringify({  key: point.key }),
 });
 
     if (!res.ok) {
       alert("Failed to delete point from database");
       return;
     }
-     removeConnectionsForDeletedPoint(selectedPointIndex);
+     removeConnectionsForDeletedPoint(point.key); // instead of index
+
     // Remove from local state
-    onDeletePoint(selectedPointIndex);
-    setSelectedPointIndex(null);
+    onDeletePoint(point.key);
+     setSelectedPointKey(null);
     alert(`Point "${point.name}" deleted successfully`);
   } catch (err) {
     console.error(err);
@@ -90,25 +83,51 @@ const res = await fetch("/api/delete-point", {
     return () => window.removeEventListener("resize", updateSize);
   }, []);
 
-  const getKaramDistance = (idx1, idx2) => {
-    const p1 = points[idx1];
-    const p2 = points[idx2];
-    const dx = p1.karamX - p2.karamX;
-    const dy = p1.karamY - p2.karamY;
-    return Math.sqrt(dx * dx + dy * dy).toFixed(2);
-  };
+const getKaramDistance = (key1, key2) => {
+  const p1 = points.find(p => p.key === key1);
+  const p2 = points.find(p => p.key === key2);
 
-const handlePointClick = (index) => {
-  if (selectedPointIndex === null) {
-    setSelectedPointIndex(index);
-  } else if (selectedPointIndex === index) {
-    setSelectedPointIndex(null);
-  } else {
-    // Add connection
-    setConnections([...connections, [selectedPointIndex, index]]);
-    setSelectedPointIndex(null);
-  }
+  if (!p1 || !p2) return 0; // safety check if points not found
+
+  const dx = p1.karamX - p2.karamX;
+  const dy = p1.karamY - p2.karamY;
+  return Math.sqrt(dx * dx + dy * dy).toFixed(2);
 };
+
+const connectionExists = (a, b) => {
+  return connections.some(
+    ([x, y]) => (x === a && y === b) || (x === b && y === a)
+  );
+};
+
+
+const handlePointClick = (pointKey) => {
+  console.log(connections)
+  if (selectedPointKey === null) {
+    // First click → select
+    setSelectedPointKey(pointKey);
+    return;
+  }
+
+  if (selectedPointKey === pointKey) {
+    // Same point clicked again → deselect
+    setSelectedPointKey(null);
+    return;
+  }
+
+  // Prevent duplicate or reverse duplicate
+  if (connectionExists(selectedPointKey, pointKey)) {
+    console.log("Connection already exists");
+    setSelectedPointKey(null);
+    return;
+  }
+
+  // Add new connection
+  setConnections(prev => [...prev, [selectedPointKey, pointKey]]);
+  setSelectedPointKey(null);
+  
+};
+
 
   const handleWheel = (e) => {
     e.evt.preventDefault();
@@ -147,7 +166,7 @@ const handlePointClick = (index) => {
         >
           SAVE UPDATED POINTS
         </button>
-        {selectedPointIndex !== null && (
+        {selectedPointKey !== null && (
         <button
           onClick={deleteSelectedPoint}
           style={{
@@ -156,8 +175,8 @@ const handlePointClick = (index) => {
             background: "red",
             color: "white",
             border: "1px solid black",
-            cursor: selectedPointIndex !== null ? "pointer" : "not-allowed",
-            opacity: selectedPointIndex !== null ? 1 : 0.5,
+            cursor: selectedPointKey !== null ? "pointer" : "not-allowed",
+            opacity: selectedPointKey !== null ? 1 : 0.5,
           }}
         >
           DELETE SELECTED
@@ -167,58 +186,66 @@ const handlePointClick = (index) => {
       <Stage width={size.width} height={size.height} draggable onWheel={handleWheel}>
         <Layer>
           {/* ===== Lines ===== */}
-          {connections.map((conn, i) => {
-            const p1 = points[conn[0]];
-            const p2 = points[conn[1]];
-            const isHovered = hoveredLineIndex === i;
+ {connections.map((conn) => {
+  const p1 = points.find(p => p.key === conn[0]);
+  const p2 = points.find(p => p.key === conn[1]);
+  
+  if (!p1 || !p2) return null; // safety check in case points are deleted
 
-            const dx = p2.x - p1.x;
-            const dy = p2.y - p1.y;
-            let rotation = Math.atan2(dy, dx) * (180 / Math.PI);
-            if (rotation > 90 || rotation < -90) rotation += 180;
+  const lineKey = `${conn[0]}-${conn[1]}`;
+  const isHovered = hoveredLineKey === lineKey;
 
-            return (
-              <Group
-                key={`line-${i}`}
-                onMouseEnter={() => setHoveredLineIndex(i)}
-                onMouseLeave={() => setHoveredLineIndex(null)}
-                onTouchStart={() => setHoveredLineIndex(i)}
-                onTouchEnd={() => setHoveredLineIndex(null)}
-              >
-                <Line points={[p1.x, p1.y, p2.x, p2.y]} stroke="transparent" strokeWidth={15} />
-                <Line points={[p1.x, p1.y, p2.x, p2.y]} stroke={BLACK} strokeWidth={STROKE_WIDTH} />
-                {isHovered && (
-                  <Text
-                    x={(p1.x + p2.x) / 2}
-                    y={(p1.y + p2.y) / 2}
-                    text={`${getKaramDistance(conn[0], conn[1])} K`}
-                    fontSize={2}
-                    fontFamily="monospace"
-                    fill={NAVY}
-                    rotation={rotation}
-                    align="center"
-                    offsetY={2}
-                    offsetX={3}
-                  />
-                )}
-              </Group>
-            );
-          })}
+  const dx = p2.x - p1.x;
+  const dy = p2.y - p1.y;
+  let rotation = Math.atan2(dy, dx) * (180 / Math.PI);
+  if (rotation > 90 || rotation < -90) rotation += 180;
+
+  
+
+  return (
+    <Group
+      key={lineKey}
+      onMouseEnter={() => setHoveredLineKey(lineKey)}
+      onMouseLeave={() => setHoveredLineKey(null)}
+      onTouchStart={() => setHoveredLineKey(lineKey)}
+      onTouchEnd={()     =>   setHoveredLineKey(null)}
+    >
+      <Line points={[p1.x, p1.y, p2.x, p2.y]} stroke="transparent" strokeWidth={0.5} />
+      <Line points={[p1.x, p1.y, p2.x, p2.y]} stroke={BLACK} strokeWidth={STROKE_WIDTH} />
+      { (
+        <Text
+          x={(p1.x + p2.x) / 2}
+          y={(p1.y + p2.y) / 2}
+          text={`${getKaramDistance(p1.key, p2.key)} K`}
+          fontSize={2}
+          fontFamily="monospace"
+          fill={NAVY}
+          rotation={rotation}
+          align="center"
+          offsetY={2}
+          offsetX={3}
+        />
+      )}
+    </Group>
+  );
+})}
+
+
 
           {/* ===== Points ===== */}
-          {points.map((p, i) => {
-            const isSelected = selectedPointIndex === i;
+          {points.map((p) => {
+            const isSelected = selectedPointKey === p.key;
             return (
-              <React.Fragment key={`${p.name}-${p.time}`}>
+              <React.Fragment key={p.key}>
                 <Circle
                   x={p.x}
                   y={p.y}
                   radius={POINT_RADIUS}
                   fill={isSelected ? NAVY : BLACK}
-                  onClick={() => handlePointClick(i)}
-                  onTap={() => handlePointClick(i)}
+                  onClick={() => handlePointClick(p.key)}
+                  onTap={() => handlePointClick(p.key)}
                   draggable
-                  onDragEnd={(e) => onPointUpdate(i, e.target.x(), e.target.y())}
+                  onDragEnd={(e) => onPointUpdate(p.key, e.target.x(), e.target.y())}
                 />
                 <Text x={p.x - 2} y={p.y - 3} text={p.name.toUpperCase()} fontSize={3} fontFamily="monospace" fill={BLACK} />
               </React.Fragment>

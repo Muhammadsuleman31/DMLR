@@ -18,7 +18,7 @@ export async function DELETE(req) {
     const points = JSON.parse(fileData);
 
     // Filter out the point to delete
-    const filteredPoints = points.filter(p => `${p.name}_${p.time}` !== key);
+    const filteredPoints = points.filter(p => p.key !== key);
 
     // Write back the updated points
     fs.writeFileSync(POINTS_FILE, JSON.stringify(filteredPoints, null, 2));

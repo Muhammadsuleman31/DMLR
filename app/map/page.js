@@ -22,13 +22,13 @@ export default function MapPage() {
   function handleGPSData(geojson) {
     const extracted = extractPoints(geojson);
     const stored = insertPoints(extracted);
-    if (stored.length === 0) return;
+    if (extracted.length === 0) return;
 
-    const main = stored[0];
+    const main = extracted[0];
     const karamInMeters = 5.5 / 3.28084;
     const latMultiplier = 111000 / karamInMeters;
 
-    const raw = stored.map((p) => {
+    const raw = extracted.map((p) => {
       const deltaLat = p.latitude - main.latitude;
       const deltaLon = p.longitude - main.longitude;
       const avgLat = (p.latitude + main.latitude) / 2;
@@ -61,6 +61,7 @@ export default function MapPage() {
     if (newPoints.length > 0) {
       setPoints(prev => [...prev, ...newPoints]);
     }
+    console.log(newPoints)
 
     // 🔹 Show summary info
     const matchedCount = alreadyExists.length;
@@ -73,13 +74,16 @@ export default function MapPage() {
     });
   }
 
-  function updatePoint(index, x, y) {
-    setPoints(prev =>
-      prev.map((p, i) => (i === index ? { ...p, x, y } : p))
-    );
-  }
-  function deletePoint(index) {
-  setPoints(prev => prev.filter((_, i) => i !== index));
+function updatePoint(pointKey, x, y) {
+  setPoints(prev =>
+    prev.map(p => (p.key === pointKey ? { ...p, x, y } : p))
+  );
+}
+
+function deletePoint(pointKey) {
+  console.log(pointKey)
+  setPoints(prev => prev.filter(p => p.key !== pointKey));
+  console.log(points)
 }
 
 
