@@ -7,6 +7,8 @@ import { insertPoints } from "../lib/pointStore";
 
 export default function MapPage() {
   const [points, setPoints] = useState([]);
+  const [savedPoints, setSavedPoints] = useState([]);
+  const [plots, setPlots] = useState([]); // store fetched plots
   const [uploadInfo, setUploadInfo] = useState(null); // For summary info
 
   // 🔹 LOAD SAVED POINTS ON PAGE LOAD
@@ -14,7 +16,18 @@ export default function MapPage() {
     const loadSaved = async () => {
       const res = await fetch("/api/save-points");
       const saved = await res.json();
-      if (Array.isArray(saved)) setPoints(saved);
+      if (Array.isArray(saved))
+        {
+          setPoints(saved);
+          setSavedPoints(JSON.parse(JSON.stringify(saved))); // deep copy
+        } 
+
+        const resPlots = await fetch("/api/save-plot");
+      const savedPlotsData = await resPlots.json();
+      if (Array.isArray(savedPlotsData)) {
+        setPlots(savedPlotsData);
+      }
+
     };
     loadSaved();
   }, []);
@@ -80,6 +93,18 @@ function updatePoint(pointKey, x, y) {
   );
 }
 
+const markPointsAsSaved = () => {
+  setSavedPoints(JSON.parse(JSON.stringify(points)));
+};
+
+
+const resetPoints = () => {
+  setPoints(JSON.parse(JSON.stringify(savedPoints)));
+};
+  const updatePlots = (newPlot) => {
+    setPlots((prev) => [...prev, newPlot]);
+  };
+
 function deletePoint(pointKey) {
   console.log(pointKey)
   setPoints(prev => prev.filter(p => p.key !== pointKey));
@@ -97,7 +122,7 @@ function deletePoint(pointKey) {
           </div>
         )}
       </div>
-      <MapCanvas points={points}  onDeletePoint={deletePoint} onPointUpdate={updatePoint} />
+      <MapCanvas plots={plots} updatePlots={updatePlots} points={points} onDeletePoint={deletePoint} onPointUpdate={updatePoint} onReset={resetPoints} onSaveSuccess={markPointsAsSaved}/>
     </>
   );
 }

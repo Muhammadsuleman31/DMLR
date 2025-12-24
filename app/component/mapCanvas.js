@@ -1,15 +1,17 @@
 "use client";
 import { Stage, Layer, Circle, Text, Line, Group } from "react-konva";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 
-export default function MapCanvas({ points, onPointUpdate, onDeletePoint }) {
+export default function MapCanvas({ points, onPointUpdate, onDeletePoint , onReset, onSaveSuccess, plots , updatePlots  }) {
   const [size, setSize] = useState({ width: 1000, height: 800 });
   const [connections, setConnections] = useState([]);
-
+  const [selectedPlotId, setSelectedPlotId] = useState(null);
+const [isPolygonClosed, setIsPolygonClosed] = useState(false); // show save button
+const stageRef = useRef(null);
   const [selectedPointKey, setSelectedPointKey] = useState(null);
 const [creatingPlot, setCreatingPlot] = useState(false); // NEW: are we creating a plot?
 const [currentPlotPoints, setCurrentPlotPoints] = useState([]); // stores clicked points for the plot
-
+const [currentScale, setCurrentScale] = useState(1);
  const [hoveredLineKey, setHoveredLineKey] = useState(null);
 
 
@@ -34,7 +36,25 @@ const removeConnectionsForDeletedPoint = (deletedKey) => {
     alert("Failed to save points");
     return;
   }
+  if (typeof onSaveSuccess === "function") {
+    onSaveSuccess(); // ✅ snapshot saved
+  }
   alert("Points saved successfully");
+};
+
+
+
+const Resetall = () => {
+  if (!window.confirm("Discard all unsaved point movements?")) return;
+
+  setConnections([]);
+  setSelectedPointKey(null);
+  setCreatingPlot(false);
+  setCurrentPlotPoints([]);
+
+  if (typeof onReset === "function") {
+    onReset(); // 🔥 restore points
+  }
 };
 
 
@@ -111,8 +131,7 @@ const drawTemporaryPlotLines = (plotArray) => {
     newConnections.push([plotArray[i - 1], plotArray[i]]);
   }
 
-  // Optional: close the polygon by connecting last to first if not already
- 
+  
 
   // Merge new connections into existing connections
   setConnections(prev => {
@@ -126,10 +145,54 @@ const drawTemporaryPlotLines = (plotArray) => {
     return combined;
   });
 };
+
+const savePlotData = async () => {
+  const name = prompt("Enter plot (kharsa) name:");
+  if (!name) return;
+
+  const plot = {
+    id: crypto.randomUUID(),  // unique key for React
+    name,
+    pointKeys: currentPlotPoints,
+  };
+
+  try {
+    const res = await fetch("/api/save-plot", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(plot),
+    });
+
+    if (!res.ok) {
+      alert("Failed to save plot");
+      return;
+    }
+
+    alert(`Plot "${name}" saved successfully!`);
+
+    // Reset after saving
+    setCurrentPlotPoints([]);
+    setSelectedPointKey(null);
+    setCreatingPlot(false);
+    setIsPolygonClosed(false);
+    setConnections([]);
+
+    // ✅ Add locally
+   if (updatePlots) updatePlots(plot);
+
+  } catch (err) {
+    console.error(err);
+    alert("An error occurred while saving the plot");
+  }
+};
+
+
+
+
   //  console.log("current pplot points",currentPlotPoints)
 const handlePointClick = (pointKey) => {
   console.log("current pplot points",currentPlotPoints);
-  console.log("current ",selectedPointKey);
+  console.log("connecti ",connections);
   if (creatingPlot) {
     const lastPlotPoint =
       currentPlotPoints[currentPlotPoints.length - 1] || null;
@@ -167,14 +230,8 @@ const handlePointClick = (pointKey) => {
       currentPlotPoints.length >= 3
     ) {
        drawTemporaryPlotLines([...currentPlotPoints, pointKey]);
-      const name = prompt("Enter plot (kharsa) name:");
-      if (name) {
-       
-      }
-      setCurrentPlotPoints([]);
+      setIsPolygonClosed(true);
       setSelectedPointKey(null);
-       setCreatingPlot(false);
-       console.log("after taking the name")
       return;
     }
 
@@ -206,6 +263,7 @@ const handlePointClick = (pointKey) => {
   }
 
   if (connectionExists(selectedPointKey, pointKey)) {
+    console.log("connection exist")
     setSelectedPointKey(null);
     return;
   }
@@ -233,7 +291,25 @@ const handlePointClick = (pointKey) => {
       x: pointer.x - mousePointTo.x * newScale,
       y: pointer.y - mousePointTo.y * newScale,
     });
+    setCurrentScale(newScale);
   };
+
+  const handleStageClick = (e) => {
+  // If clicked on empty area (not on shape)
+  if (e.target === e.target.getStage()) {
+    setSelectedPlotId(null);
+    setSelectedPointKey(null); // optional but recommended
+  }
+};
+
+
+  const getPolygonPoints = (plot) => {
+  return plot.pointKeys.flatMap(key => {
+    const p = points.find(pt => pt.key === key);
+    return p ? [p.x, p.y] : [];
+  });
+};
+
 
   return (
     <div style={{ position: "relative", backgroundColor: "#fff" }}>
@@ -241,6 +317,23 @@ const handlePointClick = (pointKey) => {
       {/* ===== Buttons ===== */}
        
       <div style={{ position: "absolute", top: 10, right: 10, zIndex: 10, display: "flex", gap: "8px" }}>
+     
+    {isPolygonClosed && (
+  <button
+    style={{
+      fontSize: "10px",
+      padding: "4px 6px",
+      background: "black",
+      color: "white",
+      border: "1px solid black",
+      cursor: "pointer",
+    }}
+    onClick={savePlotData}
+  >
+    SAVE PLOT
+  </button>
+)}
+
      <button
   style={{
     fontSize: "10px",
@@ -252,11 +345,24 @@ const handlePointClick = (pointKey) => {
   }}
   onClick={() => {
    setCurrentPlotPoints([]);
+    setIsPolygonClosed(false);
+   setConnections([]);
   setCreatingPlot(prev => !prev)}} // toggle
 >
-  {creatingPlot ? "STOP PLOT" : "CREATE PLOT"}
+  {creatingPlot ? "CANCEL" : "CREATE PLOT"}
 </button>
-
+   <button
+          onClick={Resetall}
+          style={{
+            fontSize: "10px",
+            padding: "4px 6px",
+            background: "white",
+            border: "1px solid black",
+            cursor: "pointer",
+          }}
+        >
+          Reset
+        </button>
 
         <button
           onClick={savePointsToDB}
@@ -287,8 +393,45 @@ const handlePointClick = (pointKey) => {
         </button>)}
       </div>
 
-      <Stage width={size.width} height={size.height} draggable onWheel={handleWheel}>
+      <Stage width={size.width} height={size.height} draggable onWheel={handleWheel}  ref={stageRef} onClick={handleStageClick}
+  onTap={handleStageClick}>
         <Layer>
+
+
+{plots.map(plot => {
+  const polygonPoints = getPolygonPoints(plot);
+
+  if (polygonPoints.length < 6) return null; // need 3 points
+   const isSelected = selectedPlotId === plot.id;
+
+  return (
+    <Line
+      key={plot.id}
+      points={polygonPoints}
+      closed
+       fill={isSelected ? "rgba(0,0,255,0.25)" : "rgba(0,128,0,0.15)"}
+      stroke={isSelected ? "blue" : "green"}
+      strokeWidth={0.5}
+      lineJoin="round"
+      lineCap="round"
+      onClick={() =>
+        setSelectedPlotId(prev => (prev === plot.id ? null : plot.id))
+      }
+      onTap={() =>
+        setSelectedPlotId(prev => (prev === plot.id ? null : plot.id))
+      }
+      onMouseEnter={e => {
+        document.body.style.cursor = "pointer";
+      }}
+      onMouseLeave={e => {
+        document.body.style.cursor = "default";
+      }}
+    />
+  );
+})}
+
+
+
           {/* ===== Lines ===== */}
  {connections.map((conn) => {
   const p1 = points.find(p => p.key === conn[0]);
@@ -341,6 +484,16 @@ const handlePointClick = (pointKey) => {
           const isSelected=  selectedPointKey === p.key;
             return (
               <React.Fragment key={p.key}>
+                {/* <Circle
+                   x={p.x}
+                   y={p.y}
+                   // Match the math in your hitFunc
+                   radius={3}
+                   fill="rgba(255, 0, 0, 0.2)" // Light red area
+                   stroke="red"
+                   strokeWidth={0.5}
+                   listening={false} // Important: so this doesn't block clicks to the real point
+                 /> */}
                 <Circle
                   x={p.x}
                   y={p.y}
@@ -350,6 +503,13 @@ const handlePointClick = (pointKey) => {
                   onTap={() => handlePointClick(p.key)}
                   draggable
                   onDragEnd={(e) => onPointUpdate(p.key, e.target.x(), e.target.y())}
+                   hitFunc={(ctx, shape) => {
+                       const hitRadius = 2; // bigger clickable area, adjusted for zoom
+                       ctx.beginPath();
+                       ctx.arc(0, 0, hitRadius, 0, Math.PI * 2);
+                       ctx.closePath();
+                       ctx.fillStrokeShape(shape);
+                     }}
                 />
                 <Text x={p.x - 2} y={p.y - 3} text={p.name.toUpperCase()} fontSize={3} fontFamily="monospace" fill={BLACK} />
               </React.Fragment>
