@@ -6,6 +6,7 @@ import { extractPoints } from "../lib/gpsParser";
 import { insertPoints } from "../lib/pointStore";
 
 export default function MapPage() {
+  const [globalRef, setGlobalRef] = useState(null);
   const [points, setPoints] = useState([]);
   const [savedPoints, setSavedPoints] = useState([]);
   const [plots, setPlots] = useState([]); // store fetched plots
@@ -20,6 +21,7 @@ export default function MapPage() {
         {
           setPoints(saved);
           setSavedPoints(JSON.parse(JSON.stringify(saved))); // deep copy
+          setGlobalRef(saved[0]);
         } 
 
         const resPlots = await fetch("/api/save-plot");
@@ -37,14 +39,18 @@ export default function MapPage() {
     const stored = insertPoints(extracted);
     if (extracted.length === 0) return;
 
-    const main = extracted[0];
+    let referencePoint = globalRef;
+  if (!referencePoint) {
+    referencePoint = extracted[0];
+    setGlobalRef(referencePoint); // Lock this in for future uploads
+  }
     const karamInMeters = 5.5 / 3.28084;
     const latMultiplier = 111000 / karamInMeters;
 
-    const raw = extracted.map((p) => {
-      const deltaLat = p.latitude - main.latitude;
-      const deltaLon = p.longitude - main.longitude;
-      const avgLat = (p.latitude + main.latitude) / 2;
+    const newRaw = extracted.map((p) => {
+      const deltaLat = p.latitude - referencePoint.latitude;
+      const deltaLon = p.longitude - referencePoint.longitude;
+      const avgLat = (p.latitude + referencePoint.latitude) / 2;
       const cosFactor = Math.cos(avgLat * Math.PI / 180);
       const longMultiplier = (111000 * cosFactor) / karamInMeters;
 
@@ -56,35 +62,35 @@ export default function MapPage() {
       };
     });
 
-    const minX = Math.min(...raw.map(p => p.karamX));
-    const minY = Math.min(...raw.map(p => p.karamY));
+    const existingPoint = new Set(points.map((p) => p.key));
+     const newPointsOnly = newRaw.filter((p) => !existingPoint.has(p.key));
+     const matchedCount = extracted.length - newPointsOnly.length;
 
-    const final = raw.map(p => ({
-      ...p,
-      x: (p.karamX - minX) * 2 + 50,
-      y: (p.karamY - minY) * 2 + 50,
-    }));
+   // 3. Combine with existing points to find the NEW global boundaries
+  const combinedPoints = [...points, ...newPointsOnly];
+//   const globalMinX = Math.min(...allPointsSync.map((p) => p.karamX));
+//   const globalMinY = Math.min(...allPointsSync.map((p) => p.karamY));
+// console.log(globalMinX,globalMinY);
+//   // 4. Re-calculate X and Y for EVERY point (old and new) based on the new boundaries
+//   const updatedAllPoints = allPointsSync.map((p) => ({
+//     ...p,
+//     x: (p.karamX - globalMinX) * 2 + 50,
+//     y: (p.karamY - globalMinY) * 2 + 50,
+//   }));
 
-    // 🔹 Check which uploaded points already exist in the current points
-    const existingKeys = new Set(points.map(p => p.key));
-    const alreadyExists = final.filter(p => existingKeys.has(p.key));
-    const newPoints = final.filter(p => !existingKeys.has(p.key));
 
-    // 🔹 Update points state with only new points
-    if (newPoints.length > 0) {
-      setPoints(prev => [...prev, ...newPoints]);
-    }
-    console.log(newPoints)
+ // 6. Update the state with the fully re-positioned list
+  if (newPointsOnly.length > 0) {
+    setPoints(combinedPoints); // This replaces the old state with the newly aligned points
+  }
+  
 
-    // 🔹 Show summary info
-    const matchedCount = alreadyExists.length;
-    const totalCount = final.length;
-    const percentage = ((matchedCount / totalCount) * 100).toFixed(0);
-    setUploadInfo({
-      matchedCount,
-      totalCount,
-      percentage
-    });
+   // 7. Summary info
+setUploadInfo({
+    matchedCount: matchedCount,
+    totalCount: extracted.length,
+    percentage: ((matchedCount / extracted.length) * 100).toFixed(0),
+  });
   }
 
 function updatePoint(pointKey, x, y) {

@@ -23,6 +23,7 @@ export default function FileUpload({ onData }) {
 
         onData(geojson);
       } catch (err) {
+        console.log(err)
         setError("Invalid GPS file");
       }
     };

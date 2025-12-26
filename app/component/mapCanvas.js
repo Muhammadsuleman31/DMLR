@@ -310,6 +310,24 @@ const handlePointClick = (pointKey) => {
   });
 };
 
+const getPlotCenter = (plot) => {
+  const polygonPoints = getPolygonPoints(plot); // [x1, y1, x2, y2...]
+  if (polygonPoints.length === 0) return { x: 0, y: 0 };
+
+  let totalX = 0;
+  let totalY = 0;
+  
+  for (let i = 0; i < polygonPoints.length; i += 2) {
+    totalX += polygonPoints[i];
+    totalY += polygonPoints[i + 1];
+  }
+
+  return {
+    x: totalX / (polygonPoints.length / 2),
+    y: totalY / (polygonPoints.length / 2),
+  };
+};
+
 
   return (
     <div style={{ position: "relative", backgroundColor: "#fff" }}>
@@ -403,10 +421,10 @@ const handlePointClick = (pointKey) => {
 
   if (polygonPoints.length < 6) return null; // need 3 points
    const isSelected = selectedPlotId === plot.id;
-
+   const center = getPlotCenter(plot);
   return (
+    <Group key={plot.id}>
     <Line
-      key={plot.id}
       points={polygonPoints}
       closed
        fill={isSelected ? "rgba(0,0,255,0.25)" : "rgba(0,128,0,0.15)"}
@@ -427,6 +445,20 @@ const handlePointClick = (pointKey) => {
         document.body.style.cursor = "default";
       }}
     />
+    <Text
+        x={center.x}
+        y={center.y}
+        text={plot.name}
+        fontSize={3} // Scales so it's readable when zooming
+        fontFamily="Arial"
+        fill={isSelected ? "blue" : "darkgreen"}
+        align="center"
+        verticalAlign="middle"
+        // Offset the text so its center is exactly on the center point
+        offsetX={(plot.name.length /2)} 
+        listening={false} // Click through the text to hit the plot
+      />
+      </Group>
   );
 })}
 
@@ -502,7 +534,14 @@ const handlePointClick = (pointKey) => {
                   onClick={() => handlePointClick(p.key)}
                   onTap={() => handlePointClick(p.key)}
                   draggable
-                  onDragEnd={(e) => onPointUpdate(p.key, e.target.x(), e.target.y())}
+                  onDragEnd={(e) => {
+                      
+                     onPointUpdate(p.key, e.target.x(), e.target.y())
+                     console.log('dragged to')
+                     console.log(p.key, e.target.x(), e.target.y())
+                     
+                    }
+                  }
                    hitFunc={(ctx, shape) => {
                        const hitRadius = 2; // bigger clickable area, adjusted for zoom
                        ctx.beginPath();
