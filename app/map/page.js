@@ -67,7 +67,7 @@ export default function MapPage() {
      const matchedCount = extracted.length - newPointsOnly.length;
 
    // 3. Combine with existing points to find the NEW global boundaries
-  const combinedPoints = [...points, ...newPointsOnly];
+  const CombinedPoints = [...points, ...newPointsOnly];
 //   const globalMinX = Math.min(...allPointsSync.map((p) => p.karamX));
 //   const globalMinY = Math.min(...allPointsSync.map((p) => p.karamY));
 // console.log(globalMinX,globalMinY);
@@ -81,7 +81,7 @@ export default function MapPage() {
 
  // 6. Update the state with the fully re-positioned list
   if (newPointsOnly.length > 0) {
-    setPoints(combinedPoints); // This replaces the old state with the newly aligned points
+    setPoints(CombinedPoints); // This replaces the old state with the newly aligned points
   }
   
 
@@ -93,12 +93,42 @@ setUploadInfo({
   });
   }
 
-function updatePoint(pointKey, x, y) {
-  setPoints(prev =>
-    prev.map(p => (p.key === pointKey ? { ...p, x, y } : p))
-  );
-}
+function updatePoint(pointKey, targetKaramX, targetKaramY) {
+  setPoints((prev) => {
+ 
 
+      return prev.map((p) =>
+        p.key === pointKey 
+          ? { ...p, karamX: targetKaramX, karamY: targetKaramY } 
+          : p
+      );
+
+    // if (isNewMin) {
+    //   // 🚀 GLOBAL SHIFT: Recalculate everyone
+    //   const newGlobalMinX = Math.min(targetKaramX, currentMinX);
+    //   const newGlobalMinY = Math.min(targetKaramY, currentMinY);
+
+    //   return prev.map((p) => {
+    //     const kX = p.key === pointKey ? targetKaramX : p.karamX;
+    //     const kY = p.key === pointKey ? targetKaramY : p.karamY;
+    //     return {
+    //       ...p,
+    //       karamX: kX,
+    //       karamY: kY,
+    //       x: (kX - newGlobalMinX) * 2 + 50,
+    //       y: (kY - newGlobalMinY) * 2 + 50,
+    //     };
+    //   });
+    // } else {
+    //   // 🎯 LOCAL UPDATE: Only update the target point
+    //   return prev.map((p) =>
+    //     p.key === pointKey 
+    //       ? { ...p, x: newX, y: newY, karamX: targetKaramX, karamY: targetKaramY } 
+    //       : p
+    //   );
+    // }
+  });
+}
 const markPointsAsSaved = () => {
   setSavedPoints(JSON.parse(JSON.stringify(points)));
 };

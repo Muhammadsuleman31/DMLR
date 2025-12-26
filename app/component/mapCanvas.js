@@ -16,6 +16,30 @@ const [currentScale, setCurrentScale] = useState(1);
 
 
 
+ console.log("passedpointsare" , points);
+
+  const globalMinX = Math.min(...points.map((p) => p.karamX));
+  const globalMinY = Math.min(...points.map((p) => p.karamY));
+  const scale = 2;
+  const offsetx = 50;
+  const offsety = 50;
+
+const GetXPixelValue = (value)=>{
+     return (value - globalMinX) * scale + offsetx;
+}
+const GetYPixelValue = (value)=>{
+     return (value - globalMinY) * scale + offsety;
+}
+
+const onPixelUpdate = (pointKey, x, y)=>{
+    const targetKaramX = (x - offsetx) / scale + globalMinX;
+    const targetKaramY = (y - offsety) / scale + globalMinY;
+    onPointUpdate(pointKey,targetKaramX,targetKaramY);
+} 
+
+
+
+
 const removeConnectionsForDeletedPoint = (deletedKey) => {
   setConnections(prev =>
     prev.filter(([key1, key2]) => key1 !== deletedKey && key2 !== deletedKey)
@@ -306,7 +330,7 @@ const handlePointClick = (pointKey) => {
   const getPolygonPoints = (plot) => {
   return plot.pointKeys.flatMap(key => {
     const p = points.find(pt => pt.key === key);
-    return p ? [p.x, p.y] : [];
+    return p ? [GetXPixelValue(p.karamX), GetYPixelValue(p.karamY)] : [];
   });
 };
 
@@ -327,7 +351,6 @@ const getPlotCenter = (plot) => {
     y: totalY / (polygonPoints.length / 2),
   };
 };
-
 
   return (
     <div style={{ position: "relative", backgroundColor: "#fff" }}>
@@ -470,12 +493,15 @@ const getPlotCenter = (plot) => {
   const p2 = points.find(p => p.key === conn[1]);
   
   if (!p1 || !p2) return null; // safety check in case points are deleted
-
+ const x1 = GetXPixelValue(p1.karamX);
+const y1 = GetYPixelValue(p1.karamY);
+const x2 = GetXPixelValue(p2.karamX);
+const y2 = GetYPixelValue(p2.karamY);
   const lineKey = `${conn[0]}-${conn[1]}`;
   const isHovered = hoveredLineKey === lineKey;
 
-  const dx = p2.x - p1.x;
-  const dy = p2.y - p1.y;
+  const dx = x2 - x1;
+  const dy = y2 - y1;
   let rotation = Math.atan2(dy, dx) * (180 / Math.PI);
   if (rotation > 90 || rotation < -90) rotation += 180;
 
@@ -489,12 +515,12 @@ const getPlotCenter = (plot) => {
       onTouchStart={() => setHoveredLineKey(lineKey)}
       onTouchEnd={()     =>   setHoveredLineKey(null)}
     >
-      <Line points={[p1.x, p1.y, p2.x, p2.y]} stroke="transparent" strokeWidth={0.5} />
-      <Line points={[p1.x, p1.y, p2.x, p2.y]} stroke={BLACK} strokeWidth={STROKE_WIDTH} />
+      <Line points={[x1, y1, x2, y2]} stroke="transparent" strokeWidth={0.5} />
+      <Line points={[x1, y1, x2, y2]} stroke={BLACK} strokeWidth={STROKE_WIDTH} />
       { (
         <Text
-          x={(p1.x + p2.x) / 2}
-          y={(p1.y + p2.y) / 2}
+          x={(x1 + x2) / 2}
+          y={(y1 + y2) / 2}
           text={`${getKaramDistance(p1.key, p2.key)} K`}
           fontSize={2}
           fontFamily="monospace"
@@ -515,10 +541,21 @@ const getPlotCenter = (plot) => {
           {points.map((p) => {
           const isSelected=  selectedPointKey === p.key;
             return (
-              <React.Fragment key={p.key}>
+            <Group
+                key={p.key}
+                x={GetXPixelValue(p.karamX)}
+                y={GetYPixelValue(p.karamY)}
+                draggable
+                   onDragEnd={(e) => {  
+                     onPixelUpdate(p.key, e.target.x(), e.target.y())
+                     console.log('dragged to')
+                     console.log(p.key, e.target.x(), e.target.y())
+                    }
+                  }
+               >
                 {/* <Circle
-                   x={p.x}
-                   y={p.y}
+                   x={p.karamX}
+                   y={p.karamY}
                    // Match the math in your hitFunc
                    radius={3}
                    fill="rgba(255, 0, 0, 0.2)" // Light red area
@@ -527,21 +564,11 @@ const getPlotCenter = (plot) => {
                    listening={false} // Important: so this doesn't block clicks to the real point
                  /> */}
                 <Circle
-                  x={p.x}
-                  y={p.y}
+                 
                   radius={POINT_RADIUS}
                   fill={isSelected ? NAVY : BLACK}
                   onClick={() => handlePointClick(p.key)}
                   onTap={() => handlePointClick(p.key)}
-                  draggable
-                  onDragEnd={(e) => {
-                      
-                     onPointUpdate(p.key, e.target.x(), e.target.y())
-                     console.log('dragged to')
-                     console.log(p.key, e.target.x(), e.target.y())
-                     
-                    }
-                  }
                    hitFunc={(ctx, shape) => {
                        const hitRadius = 2; // bigger clickable area, adjusted for zoom
                        ctx.beginPath();
@@ -550,8 +577,8 @@ const getPlotCenter = (plot) => {
                        ctx.fillStrokeShape(shape);
                      }}
                 />
-                <Text x={p.x - 2} y={p.y - 3} text={p.name.toUpperCase()} fontSize={3} fontFamily="monospace" fill={BLACK} />
-              </React.Fragment>
+                <Text x={-2} y={-3} text={p.name.toUpperCase()} fontSize={3} fontFamily="monospace" fill={BLACK} />
+              </Group>
             );
           })}
         </Layer>
