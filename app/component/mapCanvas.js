@@ -301,7 +301,7 @@ const handlePointClick = (pointKey) => {
     const stage = e.target.getStage();
     const oldScale = stage.scaleX();
     const pointer = stage.getPointerPosition();
-    const scaleBy = 1.1;
+    const scaleBy = 1.04;
     const newScale = e.evt.deltaY < 0 ? oldScale * scaleBy : oldScale / scaleBy;
 
     stage.scale({ x: newScale, y: newScale });
