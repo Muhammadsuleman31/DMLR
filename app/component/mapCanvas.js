@@ -1,5 +1,5 @@
 "use client";
-import { Stage, Layer, Circle, Text, Line, Group } from "react-konva";
+import { Stage, Layer, Circle, Shape, Text, Line, Group } from "react-konva";
 import React, { useState, useEffect, useRef } from "react";
 
 export default function MapCanvas({ points, onPointUpdate, onDeletePoint , onReset, onSaveSuccess, plots , updatePlots  }) {
@@ -16,7 +16,7 @@ const [currentScale, setCurrentScale] = useState(1);
 
 
 
- console.log("passedpointsare" , points);
+
 
   const globalMinX = Math.min(...points.map((p) => p.karamX));
   const globalMinY = Math.min(...points.map((p) => p.karamY));
@@ -75,6 +75,7 @@ const Resetall = () => {
   setSelectedPointKey(null);
   setCreatingPlot(false);
   setCurrentPlotPoints([]);
+  setIsPolygonClosed(false);
 
   if (typeof onReset === "function") {
     onReset(); // 🔥 restore points
@@ -215,8 +216,9 @@ const savePlotData = async () => {
 
   //  console.log("current pplot points",currentPlotPoints)
 const handlePointClick = (pointKey) => {
-  console.log("current pplot points",currentPlotPoints);
-  console.log("connecti ",connections);
+  
+ console.log("crrent plot points are", currentPlotPoints);
+
   if (creatingPlot) {
     const lastPlotPoint =
       currentPlotPoints[currentPlotPoints.length - 1] || null;
@@ -232,6 +234,7 @@ const handlePointClick = (pointKey) => {
       setCurrentPlotPoints([pointKey]);
       setSelectedPointKey(pointKey);
       drawTemporaryPlotLines([pointKey]);
+      console.log(pointKey);
       return;
     }
 
@@ -253,6 +256,7 @@ const handlePointClick = (pointKey) => {
       pointKey === currentPlotPoints[0] &&
       currentPlotPoints.length >= 3
     ) {
+      console.log("running in the end");
        drawTemporaryPlotLines([...currentPlotPoints, pointKey]);
       setIsPolygonClosed(true);
       setSelectedPointKey(null);
@@ -283,15 +287,17 @@ const handlePointClick = (pointKey) => {
 
   if (selectedPointKey === pointKey) {
     setSelectedPointKey(null);
+   
+ 
+
     return;
   }
-
   if (connectionExists(selectedPointKey, pointKey)) {
     console.log("connection exist")
     setSelectedPointKey(null);
     return;
   }
-
+   
   setConnections(prev => [...prev, [selectedPointKey, pointKey]]);
   setSelectedPointKey(null);
 };
@@ -322,7 +328,7 @@ const handlePointClick = (pointKey) => {
   // If clicked on empty area (not on shape)
   if (e.target === e.target.getStage()) {
     setSelectedPlotId(null);
-    setSelectedPointKey(null); // optional but recommended
+   creatingPlot ? "" : setSelectedPointKey(null); // optional but recommended
   }
 };
 
@@ -439,49 +445,147 @@ const getPlotCenter = (plot) => {
         <Layer>
 
 
-{plots.map(plot => {
-  const polygonPoints = getPolygonPoints(plot);
 
-  if (polygonPoints.length < 6) return null; // need 3 points
-   const isSelected = selectedPlotId === plot.id;
-   const center = getPlotCenter(plot);
+
+{/* {plots.map((plot) => {
+  const polygonPoints = getPolygonPoints(plot);
+  if (polygonPoints.length < 6) return null;
+
+  const isSelected = selectedPlotId === plot.id;
+  const center = getPlotCenter(plot);
+
+
+  const segments = plot.pointKeys.map((key, index) => {
+    const nextKey = plot.pointKeys[(index + 1) % plot.pointKeys.length];
+    return [key, nextKey];
+  });
+
   return (
     <Group key={plot.id}>
-    <Line
-      points={polygonPoints}
-      closed
-       fill={isSelected ? "rgba(0,0,255,0.25)" : "rgba(0,128,0,0.15)"}
-      stroke={isSelected ? "blue" : "green"}
-      strokeWidth={0.5}
-      lineJoin="round"
-      lineCap="round"
-      onClick={() =>
-        setSelectedPlotId(prev => (prev === plot.id ? null : plot.id))
-      }
-      onTap={() =>
-        setSelectedPlotId(prev => (prev === plot.id ? null : plot.id))
-      }
-      onMouseEnter={e => {
-        document.body.style.cursor = "pointer";
-      }}
-      onMouseLeave={e => {
-        document.body.style.cursor = "default";
-      }}
-    />
-    <Text
+      <Line
+        points={polygonPoints}
+        closed
+        fill={isSelected ? "rgba(0,0,255,0.25)" : "rgba(0,128,0,0.15)"}
+        stroke={isSelected ? "blue" : "green"}
+        strokeWidth={0.5}
+        lineJoin="round"
+        lineCap="round"
+        onClick={() => setSelectedPlotId((prev) => (prev === plot.id ? null : plot.id))}
+        onTap={() => setSelectedPlotId((prev) => (prev === plot.id ? null : plot.id))}
+      />
+
+      {segments.map(([k1, k2], idx) => {
+        const p1 = points.find((p) => p.key === k1);
+        const p2 = points.find((p) => p.key === k2);
+        if (!p1 || !p2) return null;
+
+        const x1 = GetXPixelValue(p1.karamX);
+        const y1 = GetYPixelValue(p1.karamY);
+        const x2 = GetXPixelValue(p2.karamX);
+        const y2 = GetYPixelValue(p2.karamY);
+
+        const dx = x2 - x1;
+        const dy = y2 - y1;
+        let rotation = Math.atan2(dy, dx) * (180 / Math.PI);
+        if (rotation > 90 || rotation < -90) rotation += 180;
+
+        return (
+          <Text
+            key={`${plot.id}-dist-${idx}`}
+            x={(x1 + x2) / 2}
+            y={(y1 + y2) / 2}
+            text={`${getKaramDistance(k1, k2)} K`}
+            fontSize={2}
+            fontFamily="monospace"
+            fill={isSelected ? "blue" : "darkgreen"}
+            rotation={rotation}
+            align="center"
+            offsetY={2} 
+            listening={false}
+          />
+        );
+      })}
+
+  
+      <Text
         x={center.x}
         y={center.y}
         text={plot.name}
-        fontSize={3} // Scales so it's readable when zooming
+        fontSize={3}
         fontFamily="Arial"
         fill={isSelected ? "blue" : "darkgreen"}
         align="center"
         verticalAlign="middle"
-        // Offset the text so its center is exactly on the center point
-        offsetX={(plot.name.length /2)} 
-        listening={false} // Click through the text to hit the plot
+        offsetX={plot.name.length / 2}
+        listening={false}
       />
-      </Group>
+    </Group>
+  );
+})} */}
+
+{plots.map((plot) => {
+  const polygonPoints = getPolygonPoints(plot);
+  if (polygonPoints.length < 6) return null;
+
+  const isSelected = selectedPlotId === plot.id;
+  const center = getPlotCenter(plot);
+
+  return (
+    <Shape
+      key={plot.id}
+      // Visual Properties
+      fill={isSelected ? "rgba(0,0,255,0.25)" : "rgba(0,128,0,0.15)"}
+      stroke={isSelected ? "blue" : "green"}
+      strokeWidth={0.5}
+      // Click Logic (Now applies to the entire drawn shape)
+      onClick={() => setSelectedPlotId((prev) => (prev === plot.id ? null : plot.id))}
+      onTap={() => setSelectedPlotId((prev) => (prev === plot.id ? null : plot.id))}
+      // Drawing Logic
+      sceneFunc={(context, shape) => {
+        // 1. DRAW POLYGON PATH
+        context.beginPath();
+        context.moveTo(polygonPoints[0], polygonPoints[1]);
+        for (let i = 2; i < polygonPoints.length; i += 2) {
+          context.lineTo(polygonPoints[i], polygonPoints[i + 1]);
+        }
+        context.closePath();
+        
+        // This helper fills and strokes the path using the props above
+        context.fillStrokeShape(shape);
+
+        // 2. DRAW DISTANCE LABELS (Manual Canvas Text)
+        context.font = "2px monospace";
+        context.fillStyle = isSelected ? "blue" : "darkgreen";
+        context.textAlign = "center";
+
+        plot.pointKeys.forEach((key, index) => {
+          const nextKey = plot.pointKeys[(index + 1) % plot.pointKeys.length];
+          const p1 = points.find((p) => p.key === key);
+          const p2 = points.find((p) => p.key === nextKey);
+          
+          if (p1 && p2) {
+            const x1 = GetXPixelValue(p1.karamX);
+            const y1 = GetYPixelValue(p1.karamY);
+            const x2 = GetXPixelValue(p2.karamX);
+            const y2 = GetYPixelValue(p2.karamY);
+
+            context.save(); // Save state for rotation
+            context.translate((x1 + x2) / 2, (y1 + y2) / 2);
+            
+            let rotation = Math.atan2(y2 - y1, x2 - x1);
+            if (rotation > Math.PI / 2 || rotation < -Math.PI / 2) rotation += Math.PI;
+            
+            context.rotate(rotation);
+            context.fillText(`${getKaramDistance(key, nextKey)} K`, 0, -0.3);
+            context.restore(); // Restore state
+          }
+        });
+
+        // 3. DRAW PLOT NAME
+        context.font = "3px Arial";
+        context.fillText(plot.name, center.x, center.y);
+      }}
+    />
   );
 })}
 
@@ -538,49 +642,53 @@ const y2 = GetYPixelValue(p2.karamY);
 
 
           {/* ===== Points ===== */}
-          {points.map((p) => {
-          const isSelected=  selectedPointKey === p.key;
-            return (
-            <Group
-                key={p.key}
-                x={GetXPixelValue(p.karamX)}
-                y={GetYPixelValue(p.karamY)}
-                draggable
-                   onDragEnd={(e) => {  
-                     onPixelUpdate(p.key, e.target.x(), e.target.y())
-                     console.log('dragged to')
-                     console.log(p.key, e.target.x(), e.target.y())
-                    }
-                  }
-               >
-                {/* <Circle
-                   x={p.karamX}
-                   y={p.karamY}
-                   // Match the math in your hitFunc
-                   radius={3}
-                   fill="rgba(255, 0, 0, 0.2)" // Light red area
-                   stroke="red"
-                   strokeWidth={0.5}
-                   listening={false} // Important: so this doesn't block clicks to the real point
-                 /> */}
-                <Circle
-                 
-                  radius={POINT_RADIUS}
-                  fill={isSelected ? NAVY : BLACK}
-                  onClick={() => handlePointClick(p.key)}
-                  onTap={() => handlePointClick(p.key)}
-                   hitFunc={(ctx, shape) => {
-                       const hitRadius = 2; // bigger clickable area, adjusted for zoom
-                       ctx.beginPath();
-                       ctx.arc(0, 0, hitRadius, 0, Math.PI * 2);
-                       ctx.closePath();
-                       ctx.fillStrokeShape(shape);
-                     }}
-                />
-                <Text x={-2} y={-3} text={p.name.toUpperCase()} fontSize={3} fontFamily="monospace" fill={BLACK} />
-              </Group>
-            );
-          })}
+
+
+        
+{points.map((p) => {
+  const isSelected = selectedPointKey === p.key;
+
+  return (
+    <Shape
+      key={p.key}
+      x={GetXPixelValue(p.karamX)}
+      y={GetYPixelValue(p.karamY)}
+      draggable
+      // sceneFunc handles the actual drawing on the canvas
+      sceneFunc={(context, shape) => {
+        // 1. Draw the Circle
+        context.beginPath();
+        context.arc(0, 0, POINT_RADIUS, 0, Math.PI * 2, false);
+       context.closePath();
+        context.fillStyle = isSelected ? NAVY : BLACK;
+          context.fill();
+
+        // 2. Draw the Text
+        context.font = "3px monospace";
+        context.fillStyle = isSelected ? NAVY : BLACK;
+        context.textAlign = "center";
+        context.textBaseline = "middle";
+        // Offsets (-2, -3) from your original code
+        context.fillText(p.name.toUpperCase(), 0, -1.5);
+         context.fillStrokeShape(shape);
+      }}
+      // hitFunc defines the interactive area
+      hitFunc={(ctx, shape) => {
+        ctx.beginPath();
+        ctx.arc(0, 0, 2, 0, Math.PI * 2);
+        ctx.closePath();
+        ctx.fillStrokeShape(shape);
+      }}
+      onClick={() => handlePointClick(p.key)}
+      onTap={() => handlePointClick(p.key)}
+      onDragEnd={(e) => {
+        onPixelUpdate(p.key, e.target.x(), e.target.y());
+        console.log('dragged to', p.key, e.target.x(), e.target.y());
+      }}
+    />
+  );
+})}
+          
         </Layer>
       </Stage>
     </div>
