@@ -16,7 +16,9 @@ export async function DELETE(req) {
     // Read existing points
     const fileData = fs.readFileSync(POINTS_FILE, "utf-8");
     const points = JSON.parse(fileData);
-
+  
+     const isNew = points.some(np => np.key === key);
+     console.log(isNew);
     // Filter out the point to delete
     const filteredPoints = points.filter(p => p.key !== key);
 

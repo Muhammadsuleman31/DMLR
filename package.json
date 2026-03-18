@@ -9,17 +9,23 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@prisma/adapter-pg": "^7.5.0",
+    "@prisma/client": "^7.5.0",
     "@tmcw/togeojson": "^7.1.2",
     "konva": "^10.0.12",
     "next": "16.0.10",
+    "pg": "^8.20.0",
     "react": "19.2.1",
     "react-dom": "19.2.1",
     "react-konva": "^19.2.1",
+    "server-only": "^0.0.1",
     "xmldom": "^0.6.0"
   },
   "devDependencies": {
+    "@types/node": "25.5.0",
     "babel-plugin-react-compiler": "1.0.0",
     "eslint": "^9",
-    "eslint-config-next": "16.0.10"
+    "eslint-config-next": "16.0.10",
+    "prisma": "^7.5.0"
   }
 }

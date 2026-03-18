@@ -1,3 +1,4 @@
+// File: /app/api/save-plot/route.js
 import fs from "fs";
 import path from "path";
 
@@ -6,7 +7,7 @@ const FILE_PATH = path.join(DATA_DIR, "plots.json");
 
 export async function POST(req) {
   try {
-    const { id, name, pointKeys } = await req.json(); // <-- accept id from frontend
+    const { id, name, pointKeys, area } = await req.json(); // <-- accept id from frontend
 
     if (!id || !name || !Array.isArray(pointKeys) || pointKeys.length === 0) {
       return new Response(JSON.stringify({ error: "Invalid data" }), { status: 400 });
@@ -27,7 +28,7 @@ export async function POST(req) {
     const filtered = existing.filter(p => p.id !== id);
 
     // Add new plot using frontend id
-    filtered.push({ id, name, pointKeys });
+    filtered.push({ id, name, pointKeys, area});
 
     // Save
     fs.writeFileSync(FILE_PATH, JSON.stringify(filtered, null, 2));

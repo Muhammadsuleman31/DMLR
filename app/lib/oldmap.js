@@ -59,14 +59,14 @@ export default function MapPage() {
 
       return {
         ...p,
-        id: `${p.name}_${p.time}`,
+        key: `${p.name}_${p.time}`,
         karamX: deltaLon * longMultiplier,
         karamY: deltaLat * latMultiplier * -1,
       };
     });
 
-    const existingPoint = new Set(points.map((p) => p.id));
-     const newPointsOnly = newRaw.filter((p) => !existingPoint.has(p.id));
+    const existingPoint = new Set(points.map((p) => p.key));
+     const newPointsOnly = newRaw.filter((p) => !existingPoint.has(p.key));
      const matchedCount = extracted.length - newPointsOnly.length;
 
    // 3. Combine with existing points to find the NEW global boundaries
@@ -102,7 +102,7 @@ function updatePoint(pointKey, targetKaramX, targetKaramY) {
  
       console.log("new are",pointKey, targetKaramX, targetKaramY);
       return prev.map((p) =>
-        p.id === pointKey 
+        p.key === pointKey 
           ? { ...p, karamX: targetKaramX, karamY: targetKaramY } 
           : p
       );
@@ -148,7 +148,7 @@ const resetPoints = () => {
 
 function deletePoint(pointKey) {
   console.log(pointKey)
-  setPoints(prev => prev.filter(p => p.id !== pointKey));
+  setPoints(prev => prev.filter(p => p.key !== pointKey));
   console.log(points)
 }
 

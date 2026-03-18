@@ -94,7 +94,7 @@ const calculateArea = (pointKeys) => {
   if (pointKeys.length < 3) return 0;
 
   // Uses 'points' from the component props directly
-  const coords = pointKeys.map(key => points.find(p => p.id === key));
+  const coords = pointKeys.map(key => points.find(p => p.key === key));
   
   let area = 0;
   for (let i = 0; i < coords.length; i++) {
@@ -142,7 +142,7 @@ const Resetall = () => {
   const deleteSelectedPoint = async () => {
   if (selectedPointKey === null) return;
 
-  const point = points.find(p => p.id === selectedPointKey);
+  const point = points.find(p => p.key === selectedPointKey);
   if (!point) return;
 
   if (!window.confirm(`Delete point "${point.name}"?`)) return;
@@ -180,8 +180,8 @@ const Resetall = () => {
   }, []);
 
 const getKaramDistance = (key1, key2) => {
-  const p1 = points.find(p => p.id === key1);
-  const p2 = points.find(p => p.id === key2);
+  const p1 = points.find(p => p.key === key1);
+  const p2 = points.find(p => p.key === key2);
 
   if (!p1 || !p2) return 0; // safety check if points not found
 
@@ -230,7 +230,7 @@ const savePlotData = async () => {
   const plot = {
     id: crypto.randomUUID(),
     name,
-    pointids: currentPlotPoints,
+    pointKeys: currentPlotPoints,
     area: areaValue.toFixed(2),
   };
 
@@ -344,16 +344,16 @@ const handlePointClick = (pointKey) => {
 
 
 const fitPlotToScreen = (plot) => {
-  if (!stageRef.current || !plot || plot.pointids.length === 0) return;
+  if (!stageRef.current || !plot || plot.pointKeys.length === 0) return;
 
   const stage = stageRef.current;
 
   // 1️⃣ Get pixel coordinates of all points in the plot
-  const xs = plot.pointids.map(
-    (key) => GetXPixelValue(points.find((p) => p.id === key)?.karamX || 0)
+  const xs = plot.pointKeys.map(
+    (key) => GetXPixelValue(points.find((p) => p.key === key)?.karamX || 0)
   );
-  const ys = plot.pointids.map(
-    (key) => GetYPixelValue(points.find((p) => p.id === key)?.karamY || 0)
+  const ys = plot.pointKeys.map(
+    (key) => GetYPixelValue(points.find((p) => p.key === key)?.karamY || 0)
   );
 
   const minX = Math.min(...xs);
@@ -431,9 +431,8 @@ const fitPlotToScreen = (plot) => {
 
 
   const getPolygonPoints = (plot) => {
-    console.log("pointids for plot", plot.name, plot.pointids);
-  return plot.pointids.flatMap(id => {
-    const p = points.find(pt => pt.id === id);
+  return plot.pointKeys.flatMap(key => {
+    const p = points.find(pt => pt.key === key);
     return p ? [GetXPixelValue(p.karamX), GetYPixelValue(p.karamY)] : [];
   });
 };
@@ -585,8 +584,8 @@ const getPlotCenter = (plot) => {
   const center = getPlotCenter(plot);
 
 
-  const segments = plot.pointids.map((key, index) => {
-    const nextKey = plot.pointids[(index + 1) % plot.pointids.length];
+  const segments = plot.pointKeys.map((key, index) => {
+    const nextKey = plot.pointKeys[(index + 1) % plot.pointKeys.length];
     return [key, nextKey];
   });
 
@@ -605,8 +604,8 @@ const getPlotCenter = (plot) => {
       />
 
       {segments.map(([k1, k2], idx) => {
-        const p1 = points.find((p) => p.id === k1);
-        const p2 = points.find((p) => p.id === k2);
+        const p1 = points.find((p) => p.key === k1);
+        const p2 = points.find((p) => p.key === k2);
         if (!p1 || !p2) return null;
 
         const x1 = GetXPixelValue(p1.karamX);
@@ -655,7 +654,6 @@ const getPlotCenter = (plot) => {
 
 {plots.map((plot) => {
   const polygonPoints = getPolygonPoints(plot);
-  console.log("polygon points for plot", plot.name, polygonPoints);
   if (polygonPoints.length < 6) return null;
 
   const isSelected = selectedPlotId === plot.id;
@@ -690,10 +688,10 @@ const getPlotCenter = (plot) => {
         context.fillStyle = isSelected ? "blue" : "darkgreen";
         context.textAlign = "center";
 
-        plot.pointids.forEach((key, index) => {
-          const nextKey = plot.pointids[(index + 1) % plot.pointids.length];
-          const p1 = points.find((p) => p.id === key);
-          const p2 = points.find((p) => p.id === nextKey);
+        plot.pointKeys.forEach((key, index) => {
+          const nextKey = plot.pointKeys[(index + 1) % plot.pointKeys.length];
+          const p1 = points.find((p) => p.key === key);
+          const p2 = points.find((p) => p.key === nextKey);
           
           if (p1 && p2) {
             const x1 = GetXPixelValue(p1.karamX);
@@ -715,9 +713,8 @@ const getPlotCenter = (plot) => {
 
         // 3. DRAW PLOT NAME
         context.font = "3px Arial";
-        const areaText = plot.area ? `${plot.area} K` : "0 K";
         context.fillText(plot.name, center.x, center.y);
-        context.fillText(areaText, center.x, center.y + 3);
+        context.fillText(plot.area, center.x, center.y + 3);
       }}
     />
   );
@@ -730,8 +727,8 @@ const getPlotCenter = (plot) => {
 
           {/* ===== Lines ===== */}
  {connections.map((conn) => {
-  const p1 = points.find(p => p.id === conn[0]);
-  const p2 = points.find(p => p.id === conn[1]);
+  const p1 = points.find(p => p.key === conn[0]);
+  const p2 = points.find(p => p.key === conn[1]);
   
   if (!p1 || !p2) return null; // safety check in case points are deleted
  const x1 = GetXPixelValue(p1.karamX);
@@ -831,11 +828,11 @@ const y2 = GetYPixelValue(p2.karamY);
 
         
 {points.map((p) => {
-  const isSelected = selectedPointKey === p.id;
-  const isNew = newpoints.some(np => np.id === p.id);
+  const isSelected = selectedPointKey === p.key;
+  const isNew = newpoints.some(np => np.key === p.key);
   return (
     <Shape
-      key={p.id}
+      key={p.key}
       x={GetXPixelValue(p.karamX)}
       y={GetYPixelValue(p.karamY)}
       draggable
@@ -868,11 +865,11 @@ const y2 = GetYPixelValue(p2.karamY);
         ctx.closePath();
         ctx.fillStrokeShape(shape);
       }}
-      onClick={() => handlePointClick(p.id)}
-      onTap={() => handlePointClick(p.id)}
+      onClick={() => handlePointClick(p.key)}
+      onTap={() => handlePointClick(p.key)}
       onDragEnd={(e) => {
-        onPixelUpdate(p.id, e.target.x(), e.target.y());
-        console.log('dragged to', p.id, e.target.x(), e.target.y());
+        onPixelUpdate(p.key, e.target.x(), e.target.y());
+        console.log('dragged to', p.key, e.target.x(), e.target.y());
       }}
     />
   );
