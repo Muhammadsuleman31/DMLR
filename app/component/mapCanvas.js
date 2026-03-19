@@ -157,11 +157,11 @@ const Resetall = () => {
   if (!window.confirm(`Delete point "${point.name}"?`)) return;
 
   try {
-    await deletePoint(point.key);
+    await deletePoint(point.id);
 
-    removeConnectionsForDeletedPoint(point.key);
+    removeConnectionsForDeletedPoint(point.id);
 
-    onDeletePoint(point.key);
+    onDeletePoint(point.id);
 
     setSelectedPointKey(null);
 
