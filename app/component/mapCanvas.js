@@ -3,6 +3,8 @@
 import { Stage, Layer, Circle, Shape, Text, Line, Group } from "react-konva";
 import React, { useState, useEffect, useRef } from "react";
 import { savePoints, deletePoint, savePlot } from "../lib/actions";
+import { getOwnership, saveOwnership } from "../lib/actions";
+
 
 export default function MapCanvas({ points, newpoints, onPointUpdate, onDeletePoint , onReset, onSaveSuccess, plots , updatePlots  }) {
   const [size, setSize] = useState({ width: 1000, height: 800 });
@@ -15,6 +17,13 @@ const [creatingPlot, setCreatingPlot] = useState(false); // NEW: are we creating
 const [currentPlotPoints, setCurrentPlotPoints] = useState([]); // stores clicked points for the plot
 const [currentScale, setCurrentScale] = useState(1);
  const [hoveredLineKey, setHoveredLineKey] = useState(null);
+
+// ==================== NEW: Ownership modals state ====================
+  const [editOwnershipModal, setEditOwnershipModal] = useState(false);
+  const [showOwnershipModal, setShowOwnershipModal] = useState(false);
+  const [currentOwnership, setCurrentOwnership] = useState({ cnic: "", name: "", fatherName: "" });
+  // ===================================================================
+
 
 const fitMapToScreen = () => {
   if (!stageRef.current || points.length === 0) return;
@@ -254,6 +263,107 @@ const savePlotData = async () => {
   }
 };
 
+// ==================== NEW: Ownership helper functions ====================
+  const fetchOwnership = async (plotId) => {
+    if (!plotId) return { cnic: "", name: "", fatherName: "" };
+    try {
+      const data = await getOwnership(plotId);
+      return data || { cnic: "", name: "", fatherName: "" };
+    } catch (err) {
+      console.error("Failed to fetch ownership:", err);
+      return { cnic: "", name: "", fatherName: "" };
+    }
+  };
+
+
+  const formatCnicWithDashes = (cnicValue) => {
+  if (!cnicValue) return "";
+  
+  // Accept either string or number/BigInt → make it string
+  const digits = String(cnicValue).replace(/\D/g, "");
+  
+  if (digits.length !== 13) return digits; // fallback if invalid
+  
+  return `${digits.slice(0,5)}-${digits.slice(5,12)}-${digits.slice(12)}`;
+};
+
+  const openEditOwnership = async () => {
+    if (!selectedPlotId) return;
+    const data = await fetchOwnership(selectedPlotId);
+    setCurrentOwnership({
+    cnic: formatCnicWithDashes(data?.cnic || ""),
+    name: data?.name || "",
+    fatherName: data?.fatherName || "",
+  });
+    setEditOwnershipModal(true);
+  };
+
+  const openShowOwnership = async () => {
+    if (!selectedPlotId) return;
+    const data = await fetchOwnership(selectedPlotId);
+    setCurrentOwnership(data);
+    setShowOwnershipModal(true);
+  };
+
+
+  const handleSaveOwnership = async () => {
+  if (!selectedPlotId) return;
+
+  // 1. Clean CNIC – remove everything except digits
+  const cleanCnic = (currentOwnership.cnic || "").replace(/\D/g, "");
+
+  // 2. Validate length – must be exactly 13 digits
+  if (cleanCnic.length !== 13) {
+    alert("CNIC must contain exactly 13 digits (e.g. 3520212345678)");
+    return;
+  }
+
+  // 3. Convert to BigInt (will throw if not valid number – but we already cleaned it)
+  let cnicNumber;
+  try {
+    cnicNumber = BigInt(cleanCnic);
+  } catch (err) {
+    alert("Invalid CNIC – please enter a valid 13-digit number.");
+    return;
+  }
+
+  // 4. Prepare data to send (cnic as BigInt, others trimmed)
+  const dataToSave = {
+    cnic: cnicNumber,
+    name: (currentOwnership.name || "").trim(),
+    fatherName: (currentOwnership.fatherName || "").trim(),
+  };
+
+  try {
+    // 5. Call server action
+    await saveOwnership(selectedPlotId, dataToSave);
+
+    alert("Ownership saved successfully!");
+
+    // Close modal
+    setEditOwnershipModal(false);
+
+    // Optional but recommended: refresh displayed ownership data
+    // so SHOW OWNERSHIP modal shows the latest saved value immediately
+    const refreshed = await fetchOwnership(selectedPlotId);
+    setCurrentOwnership(refreshed || { cnic: "", name: "", fatherName: "" });
+
+  } catch (err) {
+    console.error("Error saving ownership:", err);
+    alert("Failed to save ownership. Please try again.");
+  }
+};
+
+
+const formatCnicForDisplay = (cnic) => {
+  if (!cnic) return "—";
+  const str = String(cnic); // BigInt or number → string
+  if (str.length !== 13) return str;
+  return `${str.slice(0,5)}-${str.slice(5,12)}-${str.slice(12)}`;
+};
+  // =======================================================================
+
+
 
 
 
@@ -426,12 +536,26 @@ const fitPlotToScreen = (plot) => {
   if (e.target === e.target.getStage()) {
     setSelectedPlotId(null);
    creatingPlot ? "" : setSelectedPointKey(null); // optional but recommended
+   console.log("selected point keys are", selectedPointKey);
   }
 };
 
 
+
+
+
+if(selectedPlotId){
+  console.log("selected plot id is", selectedPlotId);
+}
+
+
+
+
+
+
+
   const getPolygonPoints = (plot) => {
-    console.log("pointids for plot", plot.name, plot.pointids);
+   
   return plot.pointids.flatMap(id => {
     const p = points.find(pt => pt.id === id);
     return p ? [GetXPixelValue(p.karamX), GetYPixelValue(p.karamY)] : [];
@@ -510,6 +634,40 @@ const getPlotCenter = (plot) => {
     FIT PLOT
   </button>
 )}
+
+{/* ==================== NEW: Ownership buttons (only when plot selected) ==================== */}
+        {selectedPlotId && (
+          <>
+            <button
+              onClick={openShowOwnership}
+              style={{
+                fontSize: "10px",
+                padding: "4px 6px",
+                background: "white",
+                border: "1px solid black",
+                cursor: "pointer",
+              }}
+            >
+              SHOW OWNERSHIP
+            </button>
+
+            <button
+              onClick={openEditOwnership}
+              style={{
+                fontSize: "10px",
+                padding: "4px 6px",
+                background: "orange",
+                color: "white",
+                border: "1px solid black",
+                cursor: "pointer",
+              }}
+            >
+              EDIT OWNERSHIP
+            </button>
+          </>
+        )}
+        {/* ========================================================================================= */}
+
 
      <button
   style={{
@@ -655,7 +813,7 @@ const getPlotCenter = (plot) => {
 
 {plots.map((plot) => {
   const polygonPoints = getPolygonPoints(plot);
-  console.log("polygon points for plot", plot.name, polygonPoints);
+ 
   if (polygonPoints.length < 6) return null;
 
   const isSelected = selectedPlotId === plot.id;
@@ -883,6 +1041,197 @@ const y2 = GetYPixelValue(p2.karamY);
           
         </Layer>
       </Stage>
+      {/* ==================== NEW: Ownership Modals ==================== */}
+
+      {/* EDIT OWNERSHIP MODAL */}
+      {editOwnershipModal && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            backgroundColor: "rgba(0,0,0,0.7)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 30,
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: "white",
+              padding: "20px",
+              borderRadius: "8px",
+              width: "420px",
+              boxShadow: "0 4px 20px rgba(0,0,0,0.2)",
+            }}
+          >
+            <h3 style={{ marginBottom: "15px" }}>
+              Edit Ownership — {plots.find((p) => p.id === selectedPlotId)?.name || "Selected Plot"}
+            </h3>
+
+            <div style={{ marginBottom: "12px" }}>
+  <label style={{ display: "block", marginBottom: "4px", fontWeight: "bold" }}>
+    CNIC:
+  </label>
+  <input
+    type="text"
+    pattern="[0-9]*"              // hint for validation / mobile
+    value={currentOwnership.cnic || ""}
+    
+    // ─── Modern prevention of non-digits ───
+    onBeforeInput={(e) => {
+      // Only allow insert/replace of pure digits
+      if (e.inputType === "insertText" || e.inputType === "insertFromPaste") {
+        if (!/^[0-9]*$/.test(e.data)) {
+          e.preventDefault();     // Block paste/typing of letters/symbols
+        }
+      }
+      // Allow delete/backspace/deleteContentBackward/etc. naturally
+    }}
+    
+    // ─── Auto-format dashes on every change ───
+    onChange={(e) => {
+      const onlyDigits = e.target.value.replace(/\D/g, ""); // clean to digits only
+
+      // Limit to max 13 digits right away
+      const cappedDigits = onlyDigits.slice(0, 13);
+
+      // Build formatted string
+      let formatted = cappedDigits;
+      if (cappedDigits.length > 5) {
+        formatted = cappedDigits.slice(0, 5) + "-" + cappedDigits.slice(5);
+      }
+      if (cappedDigits.length > 12) {
+        formatted = formatted.slice(0, 13) + "-" + formatted.slice(13);
+      }
+
+      setCurrentOwnership({
+        ...currentOwnership,
+        cnic: formatted, // max 15 chars (13 digits + 2 dashes)
+      });
+    }}
+    
+    placeholder="35202-1234567-8"
+    maxLength={15}                    // 13 digits + 2 dashes = 15 chars
+    style={{ width: "100%", padding: "8px", border: "1px solid #ccc", borderRadius: "4px" }}
+  />
+ 
+</div>
+            <div style={{ marginBottom: "12px" }}>
+              <label style={{ display: "block", marginBottom: "4px", fontWeight: "bold" }}>Owner Name:</label>
+              <input
+                type="text"
+                value={currentOwnership.name}
+                onChange={(e) => setCurrentOwnership({ ...currentOwnership, name: e.target.value })}
+                style={{ width: "100%", padding: "8px", border: "1px solid #ccc", borderRadius: "4px" }}
+              />
+            </div>
+
+            <div style={{ marginBottom: "20px" }}>
+              <label style={{ display: "block", marginBottom: "4px", fontWeight: "bold" }}>Father Name:</label>
+              <input
+                type="text"
+                value={currentOwnership.fatherName}
+                onChange={(e) => setCurrentOwnership({ ...currentOwnership, fatherName: e.target.value })}
+                style={{ width: "100%", padding: "8px", border: "1px solid #ccc", borderRadius: "4px" }}
+              />
+            </div>
+
+            <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+              <button
+                onClick={() => setEditOwnershipModal(false)}
+                style={{
+                  padding: "8px 16px",
+                  background: "#666",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveOwnership}
+                style={{
+                  padding: "8px 16px",
+                  background: "#28a745",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  cursor: "pointer",
+                }}
+              >
+                Save to Database
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SHOW OWNERSHIP MODAL */}
+      {showOwnershipModal && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            backgroundColor: "rgba(0,0,0,0.7)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 30,
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: "white",
+              padding: "20px",
+              borderRadius: "8px",
+              width: "420px",
+              boxShadow: "0 4px 20px rgba(0,0,0,0.2)",
+            }}
+          >
+            <h3 style={{ marginBottom: "15px" }}>
+              Ownership Details — {plots.find((p) => p.id === selectedPlotId)?.name || "Selected Plot"}
+            </h3>
+
+            {currentOwnership.cnic || currentOwnership.name || currentOwnership.fatherName ? (
+              <div style={{ marginBottom: "15px", lineHeight: "1.6" }}>
+                <p><strong>CNIC:</strong> {formatCnicForDisplay(currentOwnership.cnic)}</p>
+                <p><strong>Name:</strong> {currentOwnership.name || "—"}</p>
+                <p><strong>Father Name:</strong> {currentOwnership.fatherName || "—"}</p>
+              </div>
+            ) : (
+              <p style={{ color: "#666", marginBottom: "15px" }}>No ownership record found for this plot.</p>
+            )}
+
+            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+              <button
+                onClick={() => setShowOwnershipModal(false)}
+                style={{
+                  padding: "8px 16px",
+                  background: "#007bff",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  cursor: "pointer",
+                }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================================================================== */}
+   
     </div>
   );
 }

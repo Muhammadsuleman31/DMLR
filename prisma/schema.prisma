@@ -1,36 +1,48 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
+  // This is your Prisma schema file,
+  // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Get a free hosted Postgres database in npx prisma init --datasource-provider postgresql seconds: `npx create-db`
+  // Get a free hosted Postgres database in npx prisma init --datasource-provider postgresql seconds: `npx create-db`
 
-generator client {
-  provider = "prisma-client-js"
+  generator client {
+    provider = "prisma-client-js"
 
-}
+  }
 
-datasource db {
-  provider = "postgresql"
-}
+  datasource db {
+    provider = "postgresql"
+  }
 
 
-model Point {
-  id       String   @id
-  name      String
-  time      DateTime
-  latitude  Float
-  longitude Float
-  height    Float
-  karamX    Float
-  karamY    Float
+  model Point {
+    id       String   @id
+    name      String
+    time      DateTime
+    latitude  Float
+    longitude Float
+    height    Float
+    karamX    Float
+    karamY    Float
 
-  @@map("points")
-}
+    @@map("points")
+  }
 
 model Plot {
   id        String  @id @default(uuid())
   name      String
-  pointids Json    // This stores your array of strings from the JSON
-  area     Float
+  pointids  Json    // This stores your array of strings from the JSON
+  area      Float
+  ownership PlotOwnership?
 
   @@map("plots")
+}
+
+model PlotOwnership {
+  id         String  @id @default(uuid())
+  plotId     String  @unique
+  cnic       BigInt?
+  name       String?
+  fatherName String?
+  plot       Plot    @relation(fields: [plotId], references: [id], onDelete: Cascade)
+
+  @@map("plot_ownerships")
 }

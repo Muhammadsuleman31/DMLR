@@ -117,7 +117,25 @@ export async function savePlot({ id, name, pointids, area }) {
   }
 }
 
+// Example using Prisma (replace with your DB client)
+export async function getOwnership(plotId) {
+  const ownership = await prisma.plotOwnership.findUnique({
+    where: { plotId },
+  });
+  return ownership ? {
+    cnic: ownership.cnic.toString(),
+    name: ownership.name,
+    fatherName: ownership.fatherName,
+  } : null;
+}
 
+export async function saveOwnership(plotId, { cnic, name, fatherName }) {
+  await prisma.plotOwnership.upsert({
+    where: { plotId },
+    update: { cnic, name, fatherName },
+    create: { plotId, cnic, name, fatherName },
+  });
+}
 
 
 
