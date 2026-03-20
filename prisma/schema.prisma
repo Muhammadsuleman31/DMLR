@@ -39,7 +39,7 @@ model Plot {
 model PlotOwnership {
   id         String  @id @default(uuid())
   plotId     String  @unique
-  cnic       BigInt?
+  cnic       BigInt? @unique
   name       String?
   fatherName String?
   plot       Plot    @relation(fields: [plotId], references: [id], onDelete: Cascade)

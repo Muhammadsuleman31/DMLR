@@ -139,6 +139,20 @@ export async function saveOwnership(plotId, { cnic, name, fatherName }) {
 
 
 
+export async function searchPlotByCnic(cnicInput) {
+  try {
+   
+    const ownership = await prisma.plotOwnership.findUnique({
+      where: { cnic: BigInt(cnicInput) },
+      select: { plotId: true }
+    });
+
+    return ownership ? ownership.plotId : null;
+  } catch (err) {
+    console.error("Search by CNIC failed:", err);
+    return null;
+  }
+}
 
 
 // GET PLOTS

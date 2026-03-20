@@ -4,7 +4,7 @@ import { Stage, Layer, Circle, Shape, Text, Line, Group } from "react-konva";
 import React, { useState, useEffect, useRef } from "react";
 import { savePoints, deletePoint, savePlot } from "../lib/actions";
 import { getOwnership, saveOwnership } from "../lib/actions";
-
+import { searchPlotByCnic } from "../lib/actions";
 
 export default function MapCanvas({ points, newpoints, onPointUpdate, onDeletePoint , onReset, onSaveSuccess, plots , updatePlots  }) {
   const [size, setSize] = useState({ width: 1000, height: 800 });
@@ -23,7 +23,11 @@ const [currentScale, setCurrentScale] = useState(1);
 const [initialScale, setInitialScale] = useState(null);
 const [initialPosition, setInitialPosition] = useState(null);
 
- 
+// ==================== NEW: CNIC Search State ====================
+  const [searchCnic, setSearchCnic] = useState("");
+  // ================================================================= 
+
+
 // ==================== NEW: Ownership modals state ====================
   const [editOwnershipModal, setEditOwnershipModal] = useState(false);
   const [showOwnershipModal, setShowOwnershipModal] = useState(false);
@@ -110,6 +114,41 @@ useEffect(() => {
   };
 }, []);
 
+
+
+const handleCnicSearch = async () => {
+    const cleanCnic = searchCnic.replace(/\D/g, "");
+    
+    if (cleanCnic.length !== 13) {
+      alert("CNIC must contain exactly 13 digits (e.g. 35202-1234567-8)");
+      return;
+    }
+
+    try {
+      const cnicBigInt = BigInt(cleanCnic);
+      const plotId = await searchPlotByCnic(cnicBigInt);
+      if (!plotId) {
+        alert("No plot found with this CNIC");
+        return;
+      }
+
+      // Select the plot
+      setSelectedPlotId(plotId);
+
+      // Auto-fit to it
+      const foundPlot = plots.find(p => p.id === plotId);
+      if (foundPlot) {
+        fitPlotToScreen(foundPlot);
+      }
+
+      // Optional: clear search field after success
+      // setSearchCnic("");
+
+    } catch (err) {
+      console.error(err);
+      alert("Error searching for CNIC");
+    }
+  };
 
 
 
@@ -814,6 +853,52 @@ const getPlotCenter = (plot) => {
         >
           DELETE SELECTED
         </button>)}
+
+
+        <div style={{ display: "flex", alignItems: "center", gap: "6px", marginLeft: "12px" }}>
+          <input
+            type="text"
+            placeholder="Search CNIC"
+            value={searchCnic}
+            maxLength={15}
+            onBeforeInput={(e) => {
+              if (e.inputType === "insertText" || e.inputType === "insertFromPaste") {
+                if (!/^[0-9]*$/.test(e.data)) e.preventDefault();
+              }
+            }}
+            onChange={(e) => {
+              const onlyDigits = e.target.value.replace(/\D/g, "").slice(0, 13);
+              let formatted = onlyDigits;
+              if (onlyDigits.length > 5) formatted = onlyDigits.slice(0, 5) + "-" + onlyDigits.slice(5);
+              if (onlyDigits.length > 12) formatted = formatted.slice(0, 13) + "-" + formatted.slice(13);
+              setSearchCnic(formatted);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleCnicSearch();
+            }}
+            style={{
+              width: "160px",
+              padding: "4px 8px",
+              fontSize: "12px",
+              border: "1px solid #999",
+              borderRadius: "4px"
+            }}
+          />
+          <button
+            onClick={handleCnicSearch}
+            style={{
+              fontSize: "10px",
+              padding: "4px 10px",
+              background: "#28a745",
+              color: "white",
+              border: "1px solid black",
+              cursor: "pointer",
+            }}
+          >
+            SEARCH
+          </button>
+        </div>
+
       </div>
 
       <Stage width={size.width} height={size.height} draggable={stageDraggable} onWheel={handleWheel}  ref={stageRef} onClick={handleStageClick}
