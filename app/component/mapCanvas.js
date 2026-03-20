@@ -17,12 +17,100 @@ const [creatingPlot, setCreatingPlot] = useState(false); // NEW: are we creating
 const [currentPlotPoints, setCurrentPlotPoints] = useState([]); // stores clicked points for the plot
 const [currentScale, setCurrentScale] = useState(1);
  const [hoveredLineKey, setHoveredLineKey] = useState(null);
+ const [stageDraggable, setStageDraggable] = useState(true);
 
+// Keep these for initial load only
+const [initialScale, setInitialScale] = useState(null);
+const [initialPosition, setInitialPosition] = useState(null);
+
+ 
 // ==================== NEW: Ownership modals state ====================
   const [editOwnershipModal, setEditOwnershipModal] = useState(false);
   const [showOwnershipModal, setShowOwnershipModal] = useState(false);
   const [currentOwnership, setCurrentOwnership] = useState({ cnic: "", name: "", fatherName: "" });
   // ===================================================================
+
+
+// Tiny throttle + debounce helpers (add near top of component)
+function throttle(fn, delay) {
+  let lastCall = 0;
+  return function (...args) {
+    const now = Date.now();
+    if (now - lastCall >= delay) {
+      lastCall = now;
+      fn(...args);
+    }
+  };
+}
+
+function debounce(fn, delay) {
+  let timer;
+  return function (...args) {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn(...args), delay);
+  };
+}  
+
+
+
+// Load once
+useEffect(() => {
+  try {
+    const saved = localStorage.getItem('mapView');
+    if (saved) {
+      const { scale, x, y } = JSON.parse(saved);
+      setInitialScale(scale ?? 1);
+      setInitialPosition({ x: x ?? 0, y: y ?? 0 });
+    }
+  } catch {}
+}, []);
+
+// Apply only once after mount + stage ready
+useEffect(() => {
+  if (!stageRef.current) return;
+  if (initialScale === null) return; // wait for load
+
+  stageRef.current.scale({ x: initialScale, y: initialScale });
+  stageRef.current.position(initialPosition);
+  stageRef.current.batchDraw();
+
+  // optional: clear so we don't re-apply on next renders
+  // setInitialScale(null);
+  // setInitialPosition(null);
+}, [initialScale, initialPosition]);
+
+// ─── Save without touching React state during gestures ───
+useEffect(() => {
+  if (!stageRef.current) return;
+  const stage = stageRef.current;
+
+  const saveView = () => {
+    const scale = stage.scaleX();
+    const pos = stage.position();
+    const view = { scale, x: pos.x, y: pos.y };
+    localStorage.setItem('mapView', JSON.stringify(view));
+  };
+
+  const throttledSave = throttle(saveView, 180);
+  const debouncedSave = debounce(saveView, 600);
+
+  const handleInteraction = () => {
+    throttledSave();
+    debouncedSave();
+  };
+
+  stage.on('wheel', handleInteraction);
+  stage.on('dragmove', handleInteraction);
+  stage.on('dragend', handleInteraction);
+
+  return () => {
+    stage.off('wheel', handleInteraction);
+    stage.off('dragmove', handleInteraction);
+    stage.off('dragend', handleInteraction);
+  };
+}, []);
+
+
 
 
 const fitMapToScreen = () => {
@@ -69,7 +157,7 @@ useEffect(() => {
       fitMapToScreen();
     }, 100);
   }
-}, [points, size]);
+}, []);
 
   const globalMinX = Math.min(...points.map((p) => p.karamX));
   const globalMinY = Math.min(...points.map((p) => p.karamY));
@@ -728,7 +816,7 @@ const getPlotCenter = (plot) => {
         </button>)}
       </div>
 
-      <Stage width={size.width} height={size.height} draggable onWheel={handleWheel}  ref={stageRef} onClick={handleStageClick}
+      <Stage width={size.width} height={size.height} draggable={stageDraggable} onWheel={handleWheel}  ref={stageRef} onClick={handleStageClick}
   onTap={handleStageClick}>
         <Layer>
 
@@ -997,6 +1085,7 @@ const y2 = GetYPixelValue(p2.karamY);
       x={GetXPixelValue(p.karamX)}
       y={GetYPixelValue(p.karamY)}
       draggable
+      onDragStart={() => setStageDraggable(false)}
       // sceneFunc handles the actual drawing on the canvas
       sceneFunc={(context, shape) => {
         // 1. Draw the Circle
@@ -1029,6 +1118,7 @@ const y2 = GetYPixelValue(p2.karamY);
       onClick={() => handlePointClick(p.id)}
       onTap={() => handlePointClick(p.id)}
       onDragEnd={(e) => {
+        setStageDraggable(true);
         onPixelUpdate(p.id, e.target.x(), e.target.y());
         console.log('dragged to', p.id, e.target.x(), e.target.y());
       }}
